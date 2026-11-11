@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Resume Analyzer History</title>
+  <style>
+    :root {
+      --bg: #f2f4f1; --surface: #ffffff; --ink: #1b2a27; --muted: #5d6d69; --line: #d9dfdb;
+      --accent: #0f766e; --accent-ink: #ffffff; --good: #157347; --warn: #b45309; --bad: #b42318;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 16px/1.55 'Segoe UI', sans-serif;
+    }
+    main {
+      max-width: 1100px; margin: 0 auto; padding: 32px 20px 80px;
+    }
+    .topbar {
+      display: flex; gap: 12px; align-items: center; justify-content: space-between;
+      margin-bottom: 26px;
+    }
+    nav {
+      display: flex; gap: 12px; flex-wrap: wrap;
+    }
+    a {
+      color: var(--accent); text-decoration: none; font-weight: 600;
+    }
+    .panel {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+    }
+    .filters {
+      display: grid; grid-template-columns: minmax(220px, 1.5fr) minmax(120px, 0.7fr) minmax(120px, 0.7fr) auto; gap: 12px; align-items: end;
+      margin-bottom: 18px;
+    }
+    .field {
+      display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 0.9rem;
+    }
+    input, button {
+      font: inherit; border-radius: 8px; border: 1px solid var(--line); padding: 10px 12px;
+    }
+    input { background: var(--bg); color: var(--ink); }
+    button {
+      background: var(--accent); color: var(--accent-ink); border: 0; cursor: pointer; padding: 11px 18px;
+    }
+    .stats {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; color: var(--muted); font-size: 0.95rem;
+    }
+    .list {
+      display: grid; gap: 14px;
+    }
+    .card {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px;
+      display: grid; grid-template-columns: 1.1fr 0.7fr 0.8fr 0.8fr; gap: 16px; align-items: center;
+    }
+    .meta small { display: block; color: var(--muted); margin-bottom: 4px; }
+    .score-pill {
+      display: inline-flex; align-items: center; justify-content: center; min-width: 70px; padding: 8px 10px;
+      border-radius: 999px; font-weight: 700; background: rgba(15,118,110,0.12); color: var(--accent);
+    }
+    .score-pill.warn { background: rgba(180,83,9,0.12); color: var(--warn); }
+    .score-pill.bad { background: rgba(180,35,24,0.12); color: var(--bad); }
+    .summary {
+      color: var(--muted); margin: 0;
+    }
+    .empty {
+      padding: 20px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; color: var(--muted);
+    }
+    @media (max-width: 760px) {
+      .filters { grid-template-columns: 1fr; }
+      .card { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <h1>Analysis History</h1>
+      <nav>
+        <a href="/">Resume Analyzer</a>
+        <a href="/history.html">History</a>
+      </nav>
+    </div>
+
+    <section class="panel">
+      <div class="filters">
+        <label class="field">
+          Search by candidate name
+          <input id="searchInput" type="text" placeholder="e.g. Jane Doe" />
+        </label>
+        <label class="field">
+          Min score
+          <input id="minScore" type="number" min="0" max="100" value="0" />
+        </label>
+        <label class="field">
+          Max score
+          <input id="maxScore" type="number" min="0" max="100" value="100" />
+        </label>
+        <button id="resetFilters">Reset</button>
+      </div>
+
+      <div class="stats">
+        <span id="resultsCount">0 results</span>
+      </div>
+
+      <div id="historyList" class="list" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <script>
+    const searchInput = document.getElementById('searchInput');
+    const minScoreInput = document.getElementById('minScore');
+    const maxScoreInput = document.getElementById('maxScore');
+    const resetButton = document.getElementById('resetFilters');
+    const historyList = document.getElementById('historyList');
+    const resultsCount = document.getElementById('resultsCount');
+
+    function scoreClass(score) {
+      if (score >= 75) return 'score-pill';
+      if (score >= 50) return 'score-pill warn';
+      return 'score-pill bad';
+    }
+
+    function formatDate(value) {
+      if (!value) return 'Unknown date';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+    }
+
+    function renderHistory(items) {
+      resultsCount.textContent = `${items.length} result${items.length === 1 ? '' : 's'}`;
+
+      if (!items.length) {
+        historyList.innerHTML = '<div class="empty">No analyses match your current filters.</div>';
+        return;
+      }
+
+      historyList.innerHTML = items.map((entry) => {
+        const overall = Number(entry.overall_score ?? entry.result?.overall_score ?? 0);
+        const ats = Number(entry.ats_score ?? entry.result?.ats_score ?? 0);
+        const summary = entry.summary || entry.result?.summary || 'No summary recorded.';
+        const candidate = entry.candidate_name || 'Unknown candidate';
+        const title = entry.job_title || entry.result?.job_match?.verdict || 'No role title';
+        return `
+          <article class="card">
+            <div class="meta">
+              <small>Candidate</small>
+              <strong>${candidate}</strong>
+              <div style="margin-top:6px; color: var(--muted);">${title}</div>
+            </div>
+            <div class="meta">
+              <small>Overall</small>
+              <span class="${scoreClass(overall)}">${overall}</span>
+            </div>
+            <div class="meta">
+              <small>ATS</small>
+              <span class="${scoreClass(ats)}">${ats}</span>
+            </div>
+            <div class="meta">
+              <small>Saved</small>
+              <div>${formatDate(entry.created_at)}</div>
+              <p class="summary">${summary}</p>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    async function loadHistory() {
+      const params = new URLSearchParams({
+        search: searchInput.value.trim(),
+        minScore: minScoreInput.value || '0',
+        maxScore: maxScoreInput.value || '100',
+      });
+
+      const res = await fetch(`/api/analyses?${params.toString()}`);
+      if (!res.ok) {
+        historyList.innerHTML = '<div class="empty">Unable to load saved analyses.</div>';
+        return;
+      }
+
+      const items = await res.json();
+      renderHistory(items);
+    }
+
+    [searchInput, minScoreInput, maxScoreInput].forEach((el) => {
+      el.addEventListener('input', loadHistory);
+      el.addEventListener('change', loadHistory);
+    });
+
+    resetButton.addEventListener('click', () => {
+      searchInput.value = '';
+      minScoreInput.value = '0';
+      maxScoreInput.value = '100';
+      loadHistory();
+    });
+
+    loadHistory();
+  </script>
+</body>
+</html>

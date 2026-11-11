@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resume Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+:root{
+  --bg:#f2f4f1; --surface:#ffffff; --ink:#1b2a27; --muted:#5d6d69; --line:#d9dfdb;
+  --accent:#0f766e; --accent-ink:#ffffff; --good:#157347; --warn:#b45309; --bad:#b42318;
+  --mark:#ffe27a; --mark-ink:#3b2f00;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#121816; --surface:#1a2320; --ink:#e7eeeb; --muted:#93a39e; --line:#2b3733;
+  --accent:#34b3a6; --accent-ink:#062421; --good:#4cc38a; --warn:#f0a24b; --bad:#f08178;
+  --mark:#6b5a12; --mark-ink:#fff3c4;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 'IBM Plex Sans',system-ui,sans-serif}
+h1,h2,h3{font-family:'Bricolage Grotesque',system-ui,sans-serif;line-height:1.15;margin:0}
+main{max-width:980px;margin:0 auto;padding:40px 20px 80px}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+.topbar nav{display:flex;gap:12px;flex-wrap:wrap}
+.topbar a{color:var(--accent);text-decoration:none;font-weight:600}
+header p{color:var(--muted);max-width:60ch;margin:10px 0 0}
+h1{font-size:clamp(2rem,5vw,3rem);font-weight:700}
+.key{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:28px 0 20px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.key label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--muted);flex:1;min-width:200px}
+.key a{color:var(--accent)}
+input[type=password],input[type=text],select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;width:100%}
+textarea{resize:vertical;min-height:120px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.inputs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.inputs{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.panel h2{font-size:1.2rem}
+.panel small{color:var(--muted)}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:22px 14px;text-align:center;cursor:pointer;color:var(--muted);transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--bg)}
+.drop.has{border-style:solid;border-color:var(--accent);color:var(--ink)}
+.drop input{display:none}
+.drop b{display:block;color:var(--ink);font-weight:500;word-break:break-all}
+.go{margin-top:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+button.primary{font:500 1rem 'IBM Plex Sans',sans-serif;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:12px 22px;cursor:pointer}
+button.primary:disabled{opacity:.5;cursor:not-allowed}
+.status{color:var(--muted);font-size:.95rem}
+.err{color:var(--bad);margin-top:14px;white-space:pre-wrap}
+#results{margin-top:36px;display:none}
+.scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.score{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;gap:16px;align-items:center}
+.dial{--p:0;--c:var(--accent);width:84px;height:84px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:conic-gradient(var(--c) calc(var(--p)*1%),var(--line) 0)}
+.dial span{width:66px;height:66px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font:700 1.35rem 'Bricolage Grotesque',sans-serif}
+.score h3{font-size:1.05rem}
+.score p{margin:2px 0 0;color:var(--muted);font-size:.9rem}
+.block{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;margin-top:16px}
+.block h3{font-size:1.15rem;margin-bottom:10px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.cols{grid-template-columns:1fr}}
+.block ul{margin:0;padding-left:1.1rem}
+.block li{margin:6px 0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:3px 10px;border-radius:99px;border:1px solid var(--line);font-size:.9rem}
+.chip.hit{border-color:var(--good);color:var(--good)}
+.chip.miss{background:var(--mark);color:var(--mark-ink);border-color:transparent}
+.sec{display:grid;grid-template-columns:140px 1fr 40px;gap:12px;align-items:center;margin:8px 0;font-size:.95rem}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent)}
+.rw{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.rw:last-child{border:0}
+.rw div small{display:block;color:var(--muted);margin-bottom:2px}
+@media(max-width:760px){.rw{grid-template-columns:1fr}.sec{grid-template-columns:100px 1fr 34px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+  <div class="topbar">
+    <header>
+      <h1>Resume Analyzer</h1>
+      <p>Upload your resume, add a job description if you have one, and get feedback you can act on. The analysis runs with Google’s free Gemini API.</p>
+    </header>
+    <nav aria-label="Main navigation">
+      <a href="/">Analyzer</a>
+      <a href="/history.html">History</a>
+    </nav>
+  </div>
+
+  <section class="key" aria-label="Gemini settings">
+    <label>Candidate name
+      <input type="text" id="candidateName" placeholder="e.g. Jane Doe" autocomplete="name">
+    </label>
+    <label>Job title
+      <input type="text" id="jobTitle" placeholder="e.g. Senior Product Manager" autocomplete="off">
+    </label>
+    <label style="max-width:240px">Model
+      <select id="model">
+        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+      </select>
+    </label>
+    <small style="flex-basis:100%;color:var(--muted)">Gemini is configured on the server. Set <code>GEMINI_API_KEY</code> before starting it; the key is never sent to your browser. Get a key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</small>
+  </section>
+
+  <div class="inputs">
+    <section class="panel">
+      <h2>Your resume</h2>
+      <label class="drop" id="dropResume">
+        <input type="file" id="resumeFile" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg">
+        <span id="resumeLabel">Drop a file or click to choose<br><small>PDF, DOCX, TXT, or an image</small></span>
+      </label>
+    </section>
+
+    <section class="panel">
+      <h2>Job description <small>(optional)</small></h2>
+      <textarea id="jdText" placeholder="Paste the job description here"></textarea>
+      <label class="drop" id="dropJd">
+        <input type="file" id="jdFile" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg">
+        <span id="jdLabel">Or upload it as a file<br><small>PDF, DOCX, TXT, or an image</small></span>
+      </label>
+    </section>
+  </div>
+
+  <div class="go">
+    <button class="primary" id="run" disabled>Analyze resume</button>
+    <span class="status" id="status"></span>
+  </div>
+  <div class="err" id="error" role="alert"></div>
+
+  <section id="results" aria-live="polite"></section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = { resume: null, jd: null };
+let geminiConfigured = false;
+
+// ---- Local preferences
+try {
+  $('candidateName').value = localStorage.getItem('resume_candidate_name') || '';
+  $('jobTitle').value = localStorage.getItem('resume_job_title') || '';
+  $('model').value = localStorage.getItem('gemini_model') || 'gemini-2.5-flash';
+  localStorage.removeItem('gemini_key');
+} catch(e){}
+$('candidateName').addEventListener('input', () => { try { localStorage.setItem('resume_candidate_name', $('candidateName').value.trim()); } catch(e){} });
+$('jobTitle').addEventListener('input', () => { try { localStorage.setItem('resume_job_title', $('jobTitle').value.trim()); } catch(e){} });
+$('model').addEventListener('change', () => { try { localStorage.setItem('gemini_model', $('model').value); } catch(e){} });
+
+async function loadAvailableModels() {
+  const res = await fetch('/api/models');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Could not load Gemini models.');
+
+  const names = data.models || [];
+  if (!names.length) throw new Error('No Gemini models available for this API key.');
+
+  const current = $('model').value;
+  $('model').replaceChildren(...names.map(name => new Option(name, name)));
+  $('model').value = names.includes(current) ? current : names[0];
+  try { localStorage.setItem('gemini_model', $('model').value); } catch(e){}
+}
+
+async function initializeGemini() {
+  try {
+    const res = await fetch('/api/config');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Unable to check Gemini configuration.');
+    geminiConfigured = data.geminiConfigured;
+    if (!geminiConfigured) {
+      $('status').textContent = 'Set GEMINI_API_KEY in the server environment and restart the server.';
+      refresh();
+      return;
+    }
+    await loadAvailableModels();
+    $('status').textContent = '';
+  } catch (err) {
+    $('status').textContent = err.message;
+  }
+  refresh();
+}
+
+// ---- File reading
+const toBase64 = file => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(r.result.split(',')[1]);
+  r.onerror = () => rej(new Error('Could not read ' + file.name));
+  r.readAsDataURL(file);
+});
+
+async function readFile(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.docx')) {
+    const buf = await file.arrayBuffer();
+    const out = await mammoth.extractRawText({ arrayBuffer: buf });
+    if (!out.value.trim()) throw new Error('No text found in ' + file.name);
+    return { name: file.name, part: { text: out.value } };
+  }
+  if (name.endsWith('.txt') || name.endsWith('.md')) {
+    return { name: file.name, part: { text: await file.text() } };
+  }
+  const mime = name.endsWith('.pdf') ? 'application/pdf'
+    : name.endsWith('.png') ? 'image/png'
+    : (name.endsWith('.jpg') || name.endsWith('.jpeg')) ? 'image/jpeg' : null;
+  if (!mime) throw new Error('Unsupported file type. Use PDF, DOCX, TXT, or an image.');
+  if (file.size > 15 * 1024 * 1024) throw new Error(file.name + ' is over 15 MB.');
+  return { name: file.name, part: { inline_data: { mime_type: mime, data: await toBase64(file) } } };
+}
+
+function wireDrop(zoneId, inputId, labelId, key) {
+  const zone = $(zoneId), input = $(inputId), label = $(labelId);
+  const take = async file => {
+    if (!file) return;
+    $('error').textContent = '';
+    try {
+      state[key] = await readFile(file);
+      zone.classList.add('has');
+      label.innerHTML = '<b></b><small>Click to replace</small>';
+      label.querySelector('b').textContent = file.name;
+    } catch (e) { state[key] = null; zone.classList.remove('has'); $('error').textContent = e.message; }
+    refresh();
+  };
+  input.addEventListener('change', () => take(input.files[0]));
+  ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); zone.classList.remove('over'); }));
+  zone.addEventListener('drop', e => take(e.dataTransfer.files[0]));
+}
+wireDrop('dropResume', 'resumeFile', 'resumeLabel', 'resume');
+wireDrop('dropJd', 'jdFile', 'jdLabel', 'jd');
+
+function refresh() { $('run').disabled = !(state.resume && geminiConfigured); }
+refresh();
+initializeGemini();
+
+// ---- Prompt
+function buildPrompt(hasJd) {
+  return `You are an experienced recruiter and ATS specialist. Analyze the RESUME${hasJd ? ' and compare it with the JOB DESCRIPTION' : ''} that follow.
+Be specific and honest. Quote or reference real content from the resume. Never invent experience the candidate does not have.
+Return ONLY valid JSON, no markdown, with this exact shape:
+{
+ "overall_score": number 0-100,
+ "ats_score": number 0-100,
+ "summary": "2-3 sentence assessment",
+ "strengths": ["..."],
+ "weaknesses": ["..."],
+ "sections": [{"name":"Summary|Experience|Skills|Education|Projects|Formatting","score":0-100,"note":"short note"}],
+ "rewrites": [{"original":"weak bullet from the resume","improved":"stronger version using only facts present or clearly implied"}],
+ "action_items": ["highest-impact fixes, most important first"]${hasJd ? `,
+ "job_match": {
+   "match_score": number 0-100,
+   "verdict": "one sentence on fit",
+   "matched_skills": ["..."],
+   "missing_skills": ["skills or keywords in the job description that the resume lacks"],
+   "experience_gaps": ["..."],
+   "tailoring_tips": ["how to adjust the resume for this role"]
+ }` : ''}
+}
+Give 3-5 strengths, 3-5 weaknesses, 3 rewrites, and 4-6 action items.`;
+}
+
+// ---- Call Gemini
+async function analyze() {
+  const jdPaste = $('jdText').value.trim();
+  const hasJd = !!(jdPaste || state.jd);
+
+  const parts = [{ text: buildPrompt(hasJd) }, { text: '\n=== RESUME ===' }, state.resume.part];
+  if (hasJd) {
+    parts.push({ text: '\n=== JOB DESCRIPTION ===' });
+    if (jdPaste) parts.push({ text: jdPaste });
+    if (state.jd) parts.push(state.jd.part);
+  }
+
+  const res = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: $('model').value,
+      contents: [{ role: 'user', parts }],
+      generationConfig: { temperature: 0.3, responseMimeType: 'application/json' }
+    })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.error?.message || data?.error || res.statusText;
+    if (res.status === 429) throw new Error('Free-tier rate limit reached. Wait a minute and try again, or switch to gemini-2.5-flash-lite.\n' + msg);
+    if (res.status === 400 || res.status === 403) throw new Error('Gemini rejected the request. Check that your API key is valid.\n' + msg);
+    throw new Error(msg);
+  }
+  const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+  if (!text) throw new Error('Gemini returned no content. The file may be unreadable or was blocked. Try a different file.');
+  try { return { result: JSON.parse(text.replace(/```json|```/g, '').trim()), hasJd }; }
+  catch (e) { throw new Error('Could not read the AI response as JSON. Try again.'); }
+}
+
+async function saveAnalysisToHistory(result) {
+  const payload = {
+    candidateName: ($('candidateName').value || '').trim() || 'Unknown candidate',
+    jobTitle: ($('jobTitle').value || '').trim(),
+    result,
+  };
+
+  const response = await fetch('/api/analyses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || 'Unable to save the analysis to history.');
+  }
+
+  return response.json();
+}
+
+$('run').addEventListener('click', async () => {
+  $('error').textContent = ''; $('results').style.display = 'none';
+  $('run').disabled = true; $('status').textContent = 'Analyzing… this takes 10–30 seconds.';
+  try {
+    const { result, hasJd } = await analyze();
+    render(result, hasJd);
+    await saveAnalysisToHistory(result);
+    $('status').textContent = 'Analysis saved to history.';
+  } catch (e) {
+    $('error').textContent = e.message;
+    $('status').textContent = '';
+  }
+  refresh();
+});
+
+// ---- Render (all text goes through textContent / el helper to avoid injection)
+function el(tag, props = {}, ...kids) {
+  const n = document.createElement(tag);
+  Object.entries(props).forEach(([k, v]) => k === 'class' ? n.className = v : k === 'style' ? n.setAttribute('style', v) : n[k] = v);
+  kids.flat().forEach(k => k != null && n.append(k.nodeType ? k : document.createTextNode(String(k))));
+  return n;
+}
+const clamp = n => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+const tone = n => n >= 75 ? 'var(--good)' : n >= 50 ? 'var(--warn)' : 'var(--bad)';
+const list = items => el('ul', {}, (items || []).map(i => el('li', {}, i)));
+
+function dial(title, sub, value) {
+  const v = clamp(value);
+  const d = el('div', { class: 'dial', style: `--p:${v};--c:${tone(v)}` }, el('span', {}, v));
+  return el('div', { class: 'score' }, d, el('div', {}, el('h3', {}, title), el('p', {}, sub)));
+}
+
+function render(r, hasJd) {
+  const out = $('results'); out.replaceChildren();
+
+  const scores = el('div', { class: 'scores' },
+    dial('Overall', 'Resume quality', r.overall_score),
+    dial('ATS readiness', 'Parsing and keywords', r.ats_score));
+  if (hasJd && r.job_match) scores.append(dial('Job match', 'Fit with this role', r.job_match.match_score));
+  out.append(scores, el('div', { class: 'block' }, el('h3', {}, 'Summary'), el('p', { style: 'margin:0' }, r.summary)));
+
+  if (hasJd && r.job_match) {
+    const j = r.job_match;
+    out.append(el('div', { class: 'block' },
+      el('h3', {}, 'Match with the job description'),
+      el('p', { style: 'margin-top:0' }, j.verdict),
+      el('p', { style: 'margin:14px 0 6px;color:var(--muted)' }, 'Skills you already show'),
+      el('div', { class: 'chips' }, (j.matched_skills || []).map(s => el('span', { class: 'chip hit' }, s))),
+      el('p', { style: 'margin:14px 0 6px;color:var(--muted)' }, 'Missing from your resume'),
+      el('div', { class: 'chips' }, (j.missing_skills || []).map(s => el('span', { class: 'chip miss' }, s)))
+    ));
+    out.append(el('div', { class: 'cols' },
+      el('div', { class: 'block' }, el('h3', {}, 'Experience gaps'), list(j.experience_gaps)),
+      el('div', { class: 'block' }, el('h3', {}, 'How to tailor it'), list(j.tailoring_tips))));
+  }
+
+  out.append(el('div', { class: 'cols' },
+    el('div', { class: 'block' }, el('h3', {}, 'Strengths'), list(r.strengths)),
+    el('div', { class: 'block' }, el('h3', {}, 'Weaknesses'), list(r.weaknesses))));
+
+  if (r.sections?.length) {
+    const b = el('div', { class: 'block' }, el('h3', {}, 'Section scores'));
+    r.sections.forEach(s => {
+      const v = clamp(s.score);
+      b.append(el('div', { class: 'sec' }, el('span', {}, s.name),
+        el('div', {}, el('div', { class: 'bar' }, el('i', { style: `width:${v}%;background:${tone(v)}` })),
+          el('small', { style: 'color:var(--muted)' }, s.note)),
+        el('b', {}, v)));
+    });
+    out.append(b);
+  }
+
+  if (r.rewrites?.length) {
+    const b = el('div', { class: 'block' }, el('h3', {}, 'Suggested rewrites'));
+    r.rewrites.forEach(w => b.append(el('div', { class: 'rw' },
+      el('div', {}, el('small', {}, 'Before'), w.original),
+      el('div', {}, el('small', {}, 'After'), w.improved))));
+    out.append(b);
+  }
+
+  out.append(el('div', { class: 'block' }, el('h3', {}, 'What to fix first'), list(r.action_items)));
+  out.style.display = 'block';
+  out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+</body>
+</html>
